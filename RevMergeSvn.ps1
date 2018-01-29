@@ -1,7 +1,6 @@
-﻿param(
-    [string] $BranchOrigin = "",
-    [string] $BranchDestionation = "",
-    [string] $ListOfRevision = ""
+﻿param(    
+    [string] $BranchUrlFrom = "",
+    [string[]] $ListOfRevisions = @("")
 )
 
 Write-Host "Reverting..."
@@ -13,38 +12,22 @@ if ($toRemove)
 {
     $toRemove | Remove-item -Force -Recurse
 }
+
 svn update
+Write-Host "Updating..."
 
 # Merging
-$trunk = (svn info | Where-Object { $_.StartsWith("URL") }).SubString(4).Trim()
-$teste = (svn info | Where-Object { $_.StartsWith("URL") }).SubString(4).Trim()
+$originUrl = (svn info | Where-Object { $_.StartsWith("URL") });
+$nameOfWorkingCopy = $originUrl.substring(4).split("/")[-1];
 
-Write-Host "$teste"
+Write-Host "Working Copy $nameOfWorkingCopy";
 
-return;
 
-if (!$branchName)
-{
-    Write-Host "Getting list of branches available for merging..."
-    $branches = (svn list $trunk.Replace("trunk","branches"))
-    $branches | %{$index=0} { Write-Host "[$index] $_" -foregroundcolor green; $index++ }
-    Write-Host "Enter number for branch to merge: " -foregroundcolor yellow -NoNewline
-    $branchIndex = Read-Host
-    
-    if ($branchIndex -ge $branches.Count)
-    {
-        Write-Host "Branch number does not exist. Quitting."
-        return;
-    }
-    
-    $branchName = @($branches)[$branchIndex]
-}
+Foreach ($item in $ListOfRevisions){
 
-if ($branchname -ne '')
-{    
-    Write-Host "Merging..."    
-    $branch = $trunk.Replace("/trunk", "/branches/$branchName");
-    Write-Host "   from branch: $branch"    
-    Write-Host "   to trunk: $trunk"
-    svn merge $branch
+    $MessageLog = (svn log $BranchUrlFrom -r $item) | Select-String -Pattern "#(\d+)" | % {$_.Matches}
+
+    svn merge -c $item $BranchUrlFrom
+    svn commit -m "Automatic merge [$item] $MessageLog from Url:$BranchUrlFrom" 
+
 }
