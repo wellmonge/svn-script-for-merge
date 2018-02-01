@@ -13,21 +13,39 @@ if ($toRemove)
     $toRemove | Remove-item -Force -Recurse
 }
 
-svn update
-Write-Host "Updating..."
-
 # Merging
 $originUrl = (svn info | Where-Object { $_.StartsWith("URL") });
 $nameOfWorkingCopy = $originUrl.substring(4).split("/")[-1];
+$BranchNameFrom = $BranchUrlFrom.substring(4).split("/")[-1];
 
 Write-Host "Working Copy $nameOfWorkingCopy";
-
+Write-Host "Branch From $BranchNameFrom";
 
 Foreach ($item in $ListOfRevisions){
 
     $MessageLog = (svn log $BranchUrlFrom -r $item) | Select-String -Pattern "#(\d+)" | % {$_.Matches}
+    svn cleanup
+    Write-Host "Cleaning up..."
 
-    svn merge -c $item $BranchUrlFrom
-    svn commit -m "Automatic merge [$item] $MessageLog from Url:$BranchUrlFrom" 
+    svn update
+
+    Write-Host "Updating..."
+    
+    svn merge -c $item $BranchUrlFrom --accept postpone
+
+    $statusConflict = (svn st) | Select-String -Pattern "Conflicts" | % {$_.Matches} 
+        
+    if ($statusConflict -eq "") {
+        svn commit -m "Automatic merge [$item] $MessageLog from $BranchNameFrom"             
+    }else{
+        Write-Host "Merge with conflicts!!!!"
+
+        svn cleanup
+        Write-Host "Cleaning up..."
+
+        svn revert . --recursive
+        Write-Host "Reverting merge..."
+
+    }
 
 }
